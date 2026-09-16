@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         自动答题
 // @namespace    local.jyeoo.answer
-// @version      1.3.0
+// @version      1.3.1
 // @description  在菁优考试页手动启动 AI 连续答题；自动切换下一题，不自动保存或交卷。
 // @homepage     https://github.com/hhwsss/OpenSource/tree/main/userscripts
 // @updateURL    https://raw.githubusercontent.com/hhwsss/OpenSource/main/userscripts/auto-answer.user.js
@@ -30,8 +30,8 @@
   const MODEL_KEY = "jyeooModelScopeModel";
   const PANEL_ID = "jyeoo-gear-answer-helper";
   const PANEL_POSITION_KEY = "jyeooGearPanelPosition";
-  const FAB_SIZE = 48;
-  const PANEL_WIDTH = 220;
+  const FAB_SIZE = 40;
+  const PANEL_WIDTH = 168;
   
   class AuthenticationError extends Error {}
   class ModelUnavailableError extends Error {}
@@ -431,15 +431,15 @@
         *{box-sizing:border-box}.shell{position:relative}.fab,.panel{box-shadow:0 8px 24px rgba(15,23,42,.22)}
         button{appearance:none;border:0;font:inherit;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
         button:focus-visible{outline:3px solid rgba(37,99,235,.38);outline-offset:2px}
-        .fab{position:relative;width:48px;height:48px;border-radius:50%;background:#2563eb;color:#fff;font-size:14px;font-weight:800;letter-spacing:.02em;touch-action:none;cursor:grab}
+        .fab{position:relative;width:40px;height:40px;border-radius:50%;background:#2563eb;color:#fff;font-size:12px;font-weight:800;letter-spacing:.02em;touch-action:none;cursor:grab}
         .fab::after{content:"";position:absolute;right:3px;bottom:3px;width:10px;height:10px;border:2px solid #fff;border-radius:50%;background:#64748b}
         .shell[data-state="working"] .fab::after{background:#f59e0b}.shell[data-state="success"] .fab::after{background:#16a34a}.shell[data-state="error"] .fab::after{background:#dc2626}
-        .panel{width:min(220px,calc(100vw - 16px));overflow:hidden;border:1px solid #dbe3ef;border-radius:13px;background:rgba(255,255,255,.98);color:#172033}
-        .header{min-height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 6px 0 12px;background:#f1f5f9;touch-action:none;cursor:grab;user-select:none}
-        .title{font-size:14px;font-weight:760}.collapse{min-width:52px;height:44px;border-radius:9px;background:transparent;color:#475569;font-size:12px;font-weight:650}
-        .body{padding:8px}.actions{display:grid;grid-template-columns:1fr 1fr;gap:6px}.actions button{min-height:44px;border-radius:9px;padding:7px 6px;background:#e8eef8;color:#172033;font-size:13px;font-weight:680}
-        .actions .primary{background:#2563eb;color:#fff}.actions .danger{grid-column:1/-1;background:#fee2e2;color:#991b1b}.actions button:active,.collapse:active,.fab:active{opacity:.72}.actions button:disabled{opacity:.42}
-        .status{margin-top:6px;max-height:44px;overflow:auto;font-size:12px;line-height:1.4;word-break:break-word;color:#475569}.status[data-state="error"]{color:#b91c1c}.status[data-state="success"]{color:#15803d}.status[data-state="warning"]{color:#a16207}
+        .panel{width:min(168px,calc(100vw - 16px));overflow:hidden;border:1px solid #dbe3ef;border-radius:10px;background:rgba(255,255,255,.98);color:#172033}
+        .header{min-height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 5px 0 8px;background:#f1f5f9;touch-action:none;cursor:grab;user-select:none}
+        .title{font-size:13px;font-weight:760}.collapse{min-width:34px;height:30px;border-radius:7px;background:transparent;color:#475569;font-size:11px;font-weight:650}
+        .body{padding:6px}.actions{display:flex;flex-wrap:wrap;gap:4px}.actions button{min-height:30px;border-radius:7px;padding:4px 9px;background:#e8eef8;color:#172033;font-size:12px;font-weight:680}
+        .actions .primary{background:#2563eb;color:#fff}.actions .danger{background:#fee2e2;color:#991b1b}.actions button:active,.collapse:active,.fab:active{opacity:.72}.actions button:disabled{opacity:.42}
+        .status{margin-top:5px;max-height:42px;overflow:auto;font-size:11px;line-height:1.35;word-break:break-word;color:#475569}.status[data-state="error"]{color:#b91c1c}.status[data-state="success"]{color:#15803d}.status[data-state="warning"]{color:#a16207}
         .shell[data-collapsed="true"] .panel{display:none}.shell[data-collapsed="false"] .fab{display:none}
         @media (prefers-color-scheme:dark){.panel{border-color:#334155;background:rgba(15,23,42,.97);color:#f8fafc}.header{background:#1e293b}.collapse,.status{color:#cbd5e1}.actions button{background:#334155;color:#f8fafc}.actions .danger{background:#4c1d1d;color:#fecaca}}
         @media (prefers-reduced-motion:no-preference){.fab,.panel{transition:opacity .18s ease,box-shadow .18s ease}}
