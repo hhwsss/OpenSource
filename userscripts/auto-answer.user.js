@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         自动答题
 // @namespace    local.jyeoo.answer
-// @version      1.3.2
+// @version      1.3.3
 // @description  在菁优考试页手动启动 AI 连续答题；自动切换下一题，不自动保存或交卷。
 // @homepage     https://github.com/hhwsss/OpenSource/tree/main/userscripts
 // @updateURL    https://raw.githubusercontent.com/hhwsss/OpenSource/main/userscripts/auto-answer.user.js
@@ -462,7 +462,7 @@
         .panel{width:min(168px,calc(100vw - 16px));overflow:hidden;border:1px solid #dbe3ef;border-radius:10px;background:rgba(255,255,255,.98);color:#172033}
         .header{min-height:26px;display:flex;align-items:center;justify-content:flex-end;padding:0 4px;background:#f1f5f9;touch-action:none;cursor:grab;user-select:none}
         .collapse{min-width:28px;height:24px;border-radius:6px;background:transparent;color:#475569;font-size:16px;font-weight:650;line-height:1}
-        .body{padding:6px}.actions{display:flex;flex-wrap:wrap;gap:4px}.actions button{min-height:30px;border-radius:7px;padding:4px 9px;background:#e8eef8;color:#172033;font-size:12px;font-weight:680}
+        .body{padding:6px}.actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}.actions button{min-width:0;min-height:30px;border-radius:7px;padding:4px 2px;background:#e8eef8;color:#172033;font-size:11px;font-weight:680;white-space:nowrap}
         .actions .primary{background:#2563eb;color:#fff}.actions .danger{background:#fee2e2;color:#991b1b}.actions button:active,.collapse:active,.fab:active{opacity:.72}.actions button:disabled{opacity:.42}
         .status{margin-top:5px;max-height:42px;overflow:auto;font-size:11px;line-height:1.35;word-break:break-word;color:#475569}.status[data-state="error"]{color:#b91c1c}.status[data-state="success"]{color:#15803d}.status[data-state="warning"]{color:#a16207}
         .shell[data-collapsed="true"] .panel{display:none}.shell[data-collapsed="false"] .fab{display:none}
