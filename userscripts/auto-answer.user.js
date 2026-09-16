@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         自动答题
 // @namespace    local.jyeoo.answer
-// @version      1.2.2
-// @description  在菁优考试页手动启动 AI 连续答题；不自动保存或交卷。
+// @version      1.3.0
+// @description  在菁优考试页手动启动 AI 连续答题；自动切换下一题，不自动保存或交卷。
 // @homepage     https://github.com/hhwsss/OpenSource/tree/main/userscripts
 // @updateURL    https://raw.githubusercontent.com/hhwsss/OpenSource/main/userscripts/auto-answer.user.js
 // @downloadURL  https://raw.githubusercontent.com/hhwsss/OpenSource/main/userscripts/auto-answer.user.js
@@ -14,12 +14,11 @@
 // @grant        GM.setValue
 // @grant        GM.deleteValue
 // @grant        GM.xmlHttpRequest
-// @grant        GM.registerMenuCommand
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_deleteValue
 // @grant        GM_xmlhttpRequest
-// @grant        GM_registerMenuCommand
+// @grant        unsafeWindow
 // @connect      api-inference.modelscope.cn
 // ==/UserScript==
 
@@ -31,6 +30,8 @@
   const MODEL_KEY = "jyeooModelScopeModel";
   const PANEL_ID = "jyeoo-gear-answer-helper";
   const PANEL_POSITION_KEY = "jyeooGearPanelPosition";
+  const FAB_SIZE = 48;
+  const PANEL_WIDTH = 220;
   
   class AuthenticationError extends Error {}
   class ModelUnavailableError extends Error {}
@@ -303,7 +304,7 @@
         try {
           const answer = await requestAnswer(token, model, question.stem, question.options);
           if (!answer) throw new ModelUnavailableError("模型未返回有效答案");
-          await applyAnswer(question, answer);
+          await applyAnswer(question, answer, extracted.questions[index + 1]);
           completed += 1;
         } catch (error) {
           if (!(error instanceof ModelUnavailableError)) throw error;
@@ -327,14 +328,37 @@
       return parseAnswerLetter(response.data?.choices?.[0]?.message?.content, options);
     }
   
-    // 仅勾选答案，不切题、不触发网站草稿保存或交卷逻辑。
-    async function applyAnswer(question, answer) {
+    // 勾选答案并切换下一题，不触发网站草稿保存或交卷逻辑。
+    async function applyAnswer(question, answer, nextQuestion) {
       verifyQuestion(question);
       const input = question.options.find((option) => option.label === answer)?.input;
       if (!input || input.disabled) throw new Error("答案选项不可用");
       if (question.root.querySelector("input:checked")) return;
       input.click();
       if (!input.checked) throw new Error("选项未勾选成功");
+      if (nextQuestion) switchQuestionWithoutSaving(nextQuestion.index);
+    }
+
+    // 直接调用页面切题方法，绕过会触发草稿保存的题卡点击事件。
+    function switchQuestionWithoutSaving(index) {
+      const pageWindow = typeof unsafeWindow === "object" ? unsafeWindow : documentRef.defaultView;
+      if (typeof pageWindow?.user_test_chanage_ques === "function") {
+        pageWindow.user_test_chanage_ques(Number(index));
+        return;
+      }
+      updateQuestionView(index);
+    }
+
+    // 页面方法不可用时，仅更新题目和题卡显示状态。
+    function updateQuestionView(index) {
+      const roots = Array.from(documentRef.querySelectorAll(".IS-EXAM-DOING-QUES"));
+      roots.forEach((root) => root.classList.toggle("d-none", root.getAttribute("data-ix") !== index));
+      documentRef.querySelectorAll(".IS-EXAM-DOING-QUESCARD").forEach((card) => {
+        const current = card.getAttribute("data-ix") === index;
+        card.classList.toggle("is-text-white", current);
+        card.classList.toggle("is-btn-secondary", !current);
+        card.classList.toggle("is-text-content", !current);
+      });
     }
   
     // 检查请求期间题目是否变化，防止旧答案写入新题。
@@ -410,13 +434,12 @@
         .fab{position:relative;width:48px;height:48px;border-radius:50%;background:#2563eb;color:#fff;font-size:14px;font-weight:800;letter-spacing:.02em;touch-action:none;cursor:grab}
         .fab::after{content:"";position:absolute;right:3px;bottom:3px;width:10px;height:10px;border:2px solid #fff;border-radius:50%;background:#64748b}
         .shell[data-state="working"] .fab::after{background:#f59e0b}.shell[data-state="success"] .fab::after{background:#16a34a}.shell[data-state="error"] .fab::after{background:#dc2626}
-        .panel{width:min(252px,calc(100vw - 16px));overflow:hidden;border:1px solid #dbe3ef;border-radius:13px;background:rgba(255,255,255,.98);color:#172033}
+        .panel{width:min(220px,calc(100vw - 16px));overflow:hidden;border:1px solid #dbe3ef;border-radius:13px;background:rgba(255,255,255,.98);color:#172033}
         .header{min-height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 6px 0 12px;background:#f1f5f9;touch-action:none;cursor:grab;user-select:none}
-        .title{font-size:14px;font-weight:760}.collapse{width:44px;height:44px;border-radius:9px;background:transparent;color:#475569;display:grid;place-items:center}
-        .collapse svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
-        .body{padding:10px}.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.actions button{min-height:44px;border-radius:9px;padding:7px 8px;background:#e8eef8;color:#172033;font-size:13px;font-weight:680}
+        .title{font-size:14px;font-weight:760}.collapse{min-width:52px;height:44px;border-radius:9px;background:transparent;color:#475569;font-size:12px;font-weight:650}
+        .body{padding:8px}.actions{display:grid;grid-template-columns:1fr 1fr;gap:6px}.actions button{min-height:44px;border-radius:9px;padding:7px 6px;background:#e8eef8;color:#172033;font-size:13px;font-weight:680}
         .actions .primary{background:#2563eb;color:#fff}.actions .danger{grid-column:1/-1;background:#fee2e2;color:#991b1b}.actions button:active,.collapse:active,.fab:active{opacity:.72}.actions button:disabled{opacity:.42}
-        .status{margin-top:8px;max-height:56px;overflow:auto;font-size:12px;line-height:1.45;word-break:break-word;color:#475569}.status[data-state="error"]{color:#b91c1c}.status[data-state="success"]{color:#15803d}.status[data-state="warning"]{color:#a16207}
+        .status{margin-top:6px;max-height:44px;overflow:auto;font-size:12px;line-height:1.4;word-break:break-word;color:#475569}.status[data-state="error"]{color:#b91c1c}.status[data-state="success"]{color:#15803d}.status[data-state="warning"]{color:#a16207}
         .shell[data-collapsed="true"] .panel{display:none}.shell[data-collapsed="false"] .fab{display:none}
         @media (prefers-color-scheme:dark){.panel{border-color:#334155;background:rgba(15,23,42,.97);color:#f8fafc}.header{background:#1e293b}.collapse,.status{color:#cbd5e1}.actions button{background:#334155;color:#f8fafc}.actions .danger{background:#4c1d1d;color:#fecaca}}
         @media (prefers-reduced-motion:no-preference){.fab,.panel{transition:opacity .18s ease,box-shadow .18s ease}}
@@ -432,23 +455,37 @@
     const shell = shadow.querySelector(".shell");
     const toggle = shadow.querySelector("[data-action='toggle']");
     const collapse = shadow.querySelector("[data-action='collapse']");
-    restorePanelPosition(host, scope);
-    bindDrag(host, toggle, scope, () => setCollapsed(false));
-    bindDrag(host, shadow.querySelector("[data-drag-handle]"), scope);
+    restorePanelPosition(host, shell, scope);
+    bindDrag(host, toggle, scope, shell, () => setCollapsed(false));
+    bindDrag(host, shadow.querySelector("[data-drag-handle]"), scope, shell);
     const collapsePanel = (event) => {
       event.preventDefault();
       event.stopPropagation();
       setCollapsed(true);
     };
+    collapse.addEventListener("pointerdown", (event) => event.stopPropagation());
     collapse.addEventListener("pointerup", collapsePanel);
     collapse.addEventListener("click", collapsePanel);
     scope.addEventListener?.("resize", () => clampPanel(host, scope));
   
-    // 切换折叠状态并重新约束浮层位置。
+    // 切换折叠状态，使圆形按钮回到展开前或展开后拖动对应的位置。
     function setCollapsed(collapsed) {
-      shell.dataset.collapsed = String(collapsed);
+      if ((shell.dataset.collapsed === "true") === collapsed) return;
+      if (!collapsed) {
+        const circle = host.getBoundingClientRect();
+        const panelWidth = Math.min(PANEL_WIDTH, Math.max(FAB_SIZE, scope.innerWidth - 16));
+        const anchor = circle.left + FAB_SIZE >= panelWidth + 8 ? "right" : "left";
+        shell.dataset.anchor = anchor;
+        shell.dataset.collapsed = "false";
+        setPanelPosition(host, anchor === "right" ? circle.left + FAB_SIZE - panelWidth : circle.left, circle.top, scope);
+      } else {
+        const panel = host.getBoundingClientRect();
+        const left = shell.dataset.anchor === "right" ? panel.left + panel.width - FAB_SIZE : panel.left;
+        shell.dataset.collapsed = "true";
+        setPanelPosition(host, left, panel.top, scope);
+      }
       toggle.setAttribute("aria-label", collapsed ? "展开自动答题面板" : "收起自动答题面板");
-      scope.requestAnimationFrame?.(() => clampPanel(host, scope));
+      savePanelPosition(host, shell, scope);
     }
   
     return {
@@ -464,7 +501,7 @@
   }
   
   // 为浮层绑定触摸笔、触摸屏和鼠标统一拖动行为。
-  function bindDrag(host, handle, scope, onTap) {
+  function bindDrag(host, handle, scope, shell, onTap) {
     let drag = null;
     handle.addEventListener("pointerdown", (event) => {
       if (event.button !== undefined && event.button !== 0) return;
@@ -488,7 +525,7 @@
       drag = null;
       handle.releasePointerCapture?.(event.pointerId);
       if (!moved) onTap?.();
-      else savePanelPosition(host, scope);
+      else savePanelPosition(host, shell, scope);
     };
     handle.addEventListener("pointerup", finish);
     handle.addEventListener("pointercancel", () => { drag = null; });
@@ -516,18 +553,22 @@
   }
   
   // 保存非敏感的浮层坐标，便于下次保持位置。
-  function savePanelPosition(host, scope) {
+  function savePanelPosition(host, shell, scope) {
     try {
       const rect = host.getBoundingClientRect();
-      scope.localStorage?.setItem(PANEL_POSITION_KEY, JSON.stringify({ left: rect.left, top: rect.top }));
+      const left = shell.dataset.collapsed === "false" && shell.dataset.anchor === "right"
+        ? rect.left + rect.width - FAB_SIZE
+        : rect.left;
+      scope.localStorage?.setItem(PANEL_POSITION_KEY, JSON.stringify({ left, top: rect.top }));
     } catch {}
   }
   
   // 恢复上次拖动位置；无记录时保持右上角默认位置。
-  function restorePanelPosition(host, scope) {
+  function restorePanelPosition(host, shell, scope) {
     try {
       const position = JSON.parse(scope.localStorage?.getItem(PANEL_POSITION_KEY) || "null");
       if (Number.isFinite(position?.left) && Number.isFinite(position?.top)) {
+        shell.dataset.anchor = "right";
         setPanelPosition(host, position.left, position.top, scope);
       }
     } catch {}
@@ -563,49 +604,7 @@
     panel.reset.addEventListener("click", async () => {
       if (scope.confirm("确定清除已保存的 Key 和模型吗？")) await runner.resetKey();
     });
-    registerDesktopControls(scope, runner, panel, setStatus);
     return runner;
-  }
-  
-  // 注册电脑键盘和用户脚本菜单入口。
-  function registerDesktopControls(scope, runner, panel, setStatus = () => {}) {
-    const start = () => {
-      if (runner.isRunning()) {
-        setStatus("答题任务正在运行。", "warning");
-        return;
-      }
-      panel.start.disabled = true;
-      panel.stop.disabled = false;
-      panel.setCollapsed(false);
-      runner.run();
-    };
-    const reset = async () => {
-      if (scope.confirm("确定清除已保存的 Key 和模型吗？")) await runner.resetKey();
-    };
-    scope.document.addEventListener("keydown", (event) => {
-      if (!isAnswerShortcut(event) || isEditableTarget(event.target)) return;
-      event.preventDefault();
-      start();
-    }, true);
-    registerUserscriptCommand(scope, "开始自动答题（Ctrl+Q）", start);
-    registerUserscriptCommand(scope, "停止自动答题", runner.cancel);
-    registerUserscriptCommand(scope, "重置自动答题 Key", reset);
-  }
-  
-  // 判断键盘事件是否为 Ctrl+Q，避免占用 Command+Q 等系统快捷键。
-  function isAnswerShortcut(event) {
-    return event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey && event.key?.toLowerCase() === "q";
-  }
-  
-  // 避免用户在输入、选择或编辑文字时误触答题快捷键。
-  function isEditableTarget(target) {
-    return typeof target?.closest === "function" && Boolean(target.closest("input,textarea,select,[contenteditable='true']"));
-  }
-  
-  // 兼容现代和传统用户脚本菜单注册接口。
-  function registerUserscriptCommand(scope, name, callback) {
-    const command = scope.GM?.registerMenuCommand || scope.GM_registerMenuCommand;
-    if (typeof command === "function") command(name, callback);
   }
   
   initializeGearAnswerHelper(globalThis);
