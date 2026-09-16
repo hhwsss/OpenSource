@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         自动答题
 // @namespace    local.jyeoo.answer
-// @version      1.2.1
+// @version      1.2.2
 // @description  在菁优考试页手动启动 AI 连续答题；不自动保存或交卷。
 // @homepage     https://github.com/hhwsss/OpenSource/tree/main/userscripts
 // @updateURL    https://raw.githubusercontent.com/hhwsss/OpenSource/main/userscripts/auto-answer.user.js
@@ -424,7 +424,7 @@
       <div class="shell" data-collapsed="true" data-state="idle">
         <button class="fab" data-action="toggle" aria-label="展开自动答题面板">AI</button>
         <section class="panel" aria-label="自动答题控制面板">
-          <div class="header" data-drag-handle><span class="title">自动答题</span><button class="collapse" data-action="collapse" aria-label="收起面板"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg></button></div>
+        <div class="header" data-drag-handle><span class="title">自动答题</span><button class="collapse" data-action="collapse" aria-label="收起面板">收起</button></div>
           <div class="body"><div class="actions"><button class="primary" data-action="start">开始</button><button data-action="stop" disabled>停止</button><button class="danger" data-action="reset">重置 Key</button></div><div class="status" data-state="idle" role="status" aria-live="polite">准备就绪；仅处理文本单选题，不会自动交卷。</div></div>
         </section>
       </div>`;
@@ -435,7 +435,13 @@
     restorePanelPosition(host, scope);
     bindDrag(host, toggle, scope, () => setCollapsed(false));
     bindDrag(host, shadow.querySelector("[data-drag-handle]"), scope);
-    collapse.addEventListener("click", () => setCollapsed(true));
+    const collapsePanel = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setCollapsed(true);
+    };
+    collapse.addEventListener("pointerup", collapsePanel);
+    collapse.addEventListener("click", collapsePanel);
     scope.addEventListener?.("resize", () => clampPanel(host, scope));
   
     // 切换折叠状态并重新约束浮层位置。
@@ -462,6 +468,7 @@
     let drag = null;
     handle.addEventListener("pointerdown", (event) => {
       if (event.button !== undefined && event.button !== 0) return;
+      if (event.target?.closest?.("[data-action='collapse']")) return;
       const rect = host.getBoundingClientRect();
       drag = { id: event.pointerId, x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, moved: false };
       handle.setPointerCapture?.(event.pointerId);
@@ -560,7 +567,7 @@
     return runner;
   }
   
-  // 注册电脑键盘、用户脚本菜单和页面右键菜单入口。
+  // 注册电脑键盘和用户脚本菜单入口。
   function registerDesktopControls(scope, runner, panel, setStatus = () => {}) {
     const start = () => {
       if (runner.isRunning()) {
@@ -583,9 +590,6 @@
     registerUserscriptCommand(scope, "开始自动答题（Ctrl+Q）", start);
     registerUserscriptCommand(scope, "停止自动答题", runner.cancel);
     registerUserscriptCommand(scope, "重置自动答题 Key", reset);
-    if (scope.matchMedia?.("(pointer: fine)")?.matches) {
-      createDesktopContextMenu(scope, { start, stop: runner.cancel, toggle: () => panel.setCollapsed(panel.shell.dataset.collapsed !== "true"), reset });
-    }
   }
   
   // 判断键盘事件是否为 Ctrl+Q，避免占用 Command+Q 等系统快捷键。
@@ -602,59 +606,6 @@
   function registerUserscriptCommand(scope, name, callback) {
     const command = scope.GM?.registerMenuCommand || scope.GM_registerMenuCommand;
     if (typeof command === "function") command(name, callback);
-  }
-  
-  // 创建仅在桌面精确指针设备启用的页面右键菜单。
-  function createDesktopContextMenu(scope, actions) {
-    const host = scope.document.createElement("div");
-    host.id = `${PANEL_ID}-context-menu`;
-    const shadow = host.attachShadow({ mode: "open" });
-    shadow.innerHTML = `
-      <style>
-        :host{all:initial;position:fixed;inset:0;z-index:2147483647;pointer-events:none;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-        .menu{position:fixed;width:190px;padding:6px;border:1px solid #dbe3ef;border-radius:10px;background:#fff;box-shadow:0 10px 28px rgba(15,23,42,.24);pointer-events:auto}
-        .menu[hidden]{display:none}.menu button{width:100%;min-height:34px;padding:6px 10px;border:0;border-radius:7px;background:transparent;color:#172033;text-align:left;font:500 13px/1.35 inherit}
-        .menu button:hover,.menu button:focus-visible{background:#e8eef8;outline:none}.menu .danger{color:#b91c1c}
-        @media (prefers-color-scheme:dark){.menu{border-color:#334155;background:#0f172a}.menu button{color:#f8fafc}.menu button:hover,.menu button:focus-visible{background:#334155}.menu .danger{color:#fca5a5}}
-      </style>
-      <div class="menu" role="menu" hidden>
-        <button role="menuitem" data-action="start">开始自动答题　Ctrl+Q</button>
-        <button role="menuitem" data-action="stop">停止自动答题</button>
-        <button role="menuitem" data-action="toggle">展开/收起面板</button>
-        <button role="menuitem" class="danger" data-action="reset">重置 Key</button>
-      </div>`;
-    scope.document.documentElement.append(host);
-    const menu = shadow.querySelector(".menu");
-    for (const [name, callback] of Object.entries(actions)) {
-      shadow.querySelector(`[data-action='${name}']`).addEventListener("click", () => {
-        hide();
-        callback();
-      });
-    }
-    scope.document.addEventListener("contextmenu", (event) => {
-      if (isNativeContextTarget(event.target)) return;
-      event.preventDefault();
-      const left = Math.min(event.clientX, Math.max(8, scope.innerWidth - 198));
-      const top = Math.min(event.clientY, Math.max(8, scope.innerHeight - 158));
-      menu.style.left = `${Math.max(8, left)}px`;
-      menu.style.top = `${Math.max(8, top)}px`;
-      menu.hidden = false;
-      shadow.querySelector("[data-action='start']").focus();
-    });
-    scope.document.addEventListener("click", hide, true);
-    scope.document.addEventListener("scroll", hide, true);
-    scope.document.addEventListener("keydown", (event) => { if (event.key === "Escape") hide(); }, true);
-  
-    // 隐藏右键菜单并交还页面交互。
-    function hide() {
-      menu.hidden = true;
-    }
-    return host;
-  }
-  
-  // 在需要复制、输入或打开链接的位置保留浏览器原生右键菜单。
-  function isNativeContextTarget(target) {
-    return typeof target?.closest === "function" && Boolean(target.closest("input,textarea,select,a,[contenteditable='true']"));
   }
   
   initializeGearAnswerHelper(globalThis);
