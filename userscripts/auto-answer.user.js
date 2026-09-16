@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         自动答题
 // @namespace    local.jyeoo.answer
-// @version      1.3.1
+// @version      1.3.2
 // @description  在菁优考试页手动启动 AI 连续答题；自动切换下一题，不自动保存或交卷。
 // @homepage     https://github.com/hhwsss/OpenSource/tree/main/userscripts
 // @updateURL    https://raw.githubusercontent.com/hhwsss/OpenSource/main/userscripts/auto-answer.user.js
@@ -32,6 +32,7 @@
   const PANEL_POSITION_KEY = "jyeooGearPanelPosition";
   const FAB_SIZE = 40;
   const PANEL_WIDTH = 168;
+  const ANSWER_REVIEW_DELAY_MS = 1_000;
   
   class AuthenticationError extends Error {}
   class ModelUnavailableError extends Error {}
@@ -328,7 +329,7 @@
       return parseAnswerLetter(response.data?.choices?.[0]?.message?.content, options);
     }
   
-    // 勾选答案并切换下一题，不触发网站草稿保存或交卷逻辑。
+    // 勾选答案，停留一秒供用户查看后切换下一题，不触发网站草稿保存或交卷逻辑。
     async function applyAnswer(question, answer, nextQuestion) {
       verifyQuestion(question);
       const input = question.options.find((option) => option.label === answer)?.input;
@@ -336,7 +337,31 @@
       if (question.root.querySelector("input:checked")) return;
       input.click();
       if (!input.checked) throw new Error("选项未勾选成功");
+      setStatus("已勾选答案，1 秒后切换下一题…", "working");
+      await waitForAnswerReview(controller?.signal);
+      ensureNotCancelled();
       if (nextQuestion) switchQuestionWithoutSaving(nextQuestion.index);
+    }
+
+    // 在答题切换前保留一秒，并允许“停止”按钮立即中断等待。
+    function waitForAnswerReview(signal) {
+      return new Promise((resolve, reject) => {
+        if (signal?.aborted) {
+          reject(new DOMException("运行已停止", "AbortError"));
+          return;
+        }
+        const finish = () => {
+          signal?.removeEventListener("abort", abort);
+          resolve();
+        };
+        const abort = () => {
+          clearTimeout(timer);
+          signal?.removeEventListener("abort", abort);
+          reject(new DOMException("运行已停止", "AbortError"));
+        };
+        const timer = setTimeout(finish, ANSWER_REVIEW_DELAY_MS);
+        signal?.addEventListener("abort", abort, { once: true });
+      });
     }
 
     // 直接调用页面切题方法，绕过会触发草稿保存的题卡点击事件。
@@ -435,8 +460,8 @@
         .fab::after{content:"";position:absolute;right:3px;bottom:3px;width:10px;height:10px;border:2px solid #fff;border-radius:50%;background:#64748b}
         .shell[data-state="working"] .fab::after{background:#f59e0b}.shell[data-state="success"] .fab::after{background:#16a34a}.shell[data-state="error"] .fab::after{background:#dc2626}
         .panel{width:min(168px,calc(100vw - 16px));overflow:hidden;border:1px solid #dbe3ef;border-radius:10px;background:rgba(255,255,255,.98);color:#172033}
-        .header{min-height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 5px 0 8px;background:#f1f5f9;touch-action:none;cursor:grab;user-select:none}
-        .title{font-size:13px;font-weight:760}.collapse{min-width:34px;height:30px;border-radius:7px;background:transparent;color:#475569;font-size:11px;font-weight:650}
+        .header{min-height:26px;display:flex;align-items:center;justify-content:flex-end;padding:0 4px;background:#f1f5f9;touch-action:none;cursor:grab;user-select:none}
+        .collapse{min-width:28px;height:24px;border-radius:6px;background:transparent;color:#475569;font-size:16px;font-weight:650;line-height:1}
         .body{padding:6px}.actions{display:flex;flex-wrap:wrap;gap:4px}.actions button{min-height:30px;border-radius:7px;padding:4px 9px;background:#e8eef8;color:#172033;font-size:12px;font-weight:680}
         .actions .primary{background:#2563eb;color:#fff}.actions .danger{background:#fee2e2;color:#991b1b}.actions button:active,.collapse:active,.fab:active{opacity:.72}.actions button:disabled{opacity:.42}
         .status{margin-top:5px;max-height:42px;overflow:auto;font-size:11px;line-height:1.35;word-break:break-word;color:#475569}.status[data-state="error"]{color:#b91c1c}.status[data-state="success"]{color:#15803d}.status[data-state="warning"]{color:#a16207}
@@ -447,7 +472,7 @@
       <div class="shell" data-collapsed="true" data-state="idle">
         <button class="fab" data-action="toggle" aria-label="展开自动答题面板">AI</button>
         <section class="panel" aria-label="自动答题控制面板">
-        <div class="header" data-drag-handle><span class="title">自动答题</span><button class="collapse" data-action="collapse" aria-label="收起面板">收起</button></div>
+        <div class="header" data-drag-handle><button class="collapse" data-action="collapse" aria-label="收起面板">—</button></div>
           <div class="body"><div class="actions"><button class="primary" data-action="start">开始</button><button data-action="stop" disabled>停止</button><button class="danger" data-action="reset">重置 Key</button></div><div class="status" data-state="idle" role="status" aria-live="polite">准备就绪；仅处理文本单选题，不会自动交卷。</div></div>
         </section>
       </div>`;
